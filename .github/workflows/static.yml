@@ -20,22 +20,44 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://devsecops.ngrok.app
 
-      - name: Run OWASP Dependency-Check
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+
+      - name: Install and Run OWASP Dependency-Check
         shell: pwsh
         run: |
-          # Utilisez le chemin absolu et vérifiez que Java est installé
-          java -version
+          # Téléchargement et installation automatique
+          Write-Output "Téléchargement de Dependency-Check..."
+          $downloadUrl = "https://github.com/jeremylong/DependencyCheck/releases/latest/download/dependency-check-12.1.0-release.zip"
+          Invoke-WebRequest -Uri $downloadUrl -OutFile "dependency-check.zip"
           
-          # Exécutez Dependency-Check depuis votre installation locale
-          $DCHECK_PATH = "${{ github.workspace }}\dependency-check\bin\dependency-check.bat"
-          & $DCHECK_PATH --project "${{ github.repository }}" --scan . `
-            --format HTML --format JSON `
-            --out ./security-reports/ `
-            --disableYarnAudit --disableNodeAudit  # Désactive les analyseurs optionnels si nécessaire
+          Write-Output "Décompression..."
+          Expand-Archive -Path "dependency-check.zip" -DestinationPath "dependency-check" -Force
+          
+          # Vérification de l'installation
+          if (-not (Test-Path ".\dependency-check\bin\dependency-check.bat")) {
+              Write-Error "Échec de l'installation de Dependency-Check"
+              Get-ChildItem -Recurse ".\dependency-check"
+              exit 1
+          }
 
-          # Vérifiez que le rapport a été généré
+          # Exécution de l'analyse
+          Write-Output "Lancement de l'analyse de sécurité..."
+          .\dependency-check\bin\dependency-check.bat `
+            --project "${{ github.repository }}" `
+            --scan . `
+            --format HTML `
+            --format JSON `
+            --out ./security-reports/ `
+            --disableYarnAudit `
+            --disableNodeAudit
+
+          # Vérification du rapport
           if (-not (Test-Path "./security-reports/dependency-check-report.json")) {
-              Write-Error "Le rapport Dependency-Check n'a pas été généré"
+              Write-Error "Le rapport n'a pas été généré"
               exit 1
           }
 
@@ -51,12 +73,13 @@ jobs:
         shell: pwsh
         run: |
           $reportPath = "./security-reports/dependency-check-report.json"
-          $criticalCount = (Get-Content $reportPath | ConvertFrom-Json).dependencies.where{
+          $reportData = Get-Content $reportPath | ConvertFrom-Json
+          $criticalCount = ($reportData.dependencies | Where-Object {
               $_.vulnerabilities.severity -contains "CRITICAL"
-          }.Count
+          }).Count
           
           if ($criticalCount -gt 0) {
-              Write-Output "::error::$criticalCount vulnérabilités CRITIQUES détectées"
+              Write-Output "::error::Nombre de vulnérabilités CRITIQUES détectées: $criticalCount"
               exit 1
           }
-          Write-Output "Aucune vulnérabilité critique trouvée"
+          Write-Output "Aucune vulnérabilité critique trouvée - Validation réussie!"
