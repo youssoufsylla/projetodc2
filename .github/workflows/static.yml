@@ -2,8 +2,7 @@ name: Build and Security Analysis
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   build-and-analyze:
@@ -19,7 +18,7 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@v5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://7376-41-223-51-170.ngrok-free.app
+          SONAR_HOST_URL: https://devsecops.ngrok.app
 
       - name: Run OWASP Dependency-Check
         run: |
