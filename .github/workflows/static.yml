@@ -8,7 +8,7 @@ jobs:
   build:
     name: Build and analyze
     runs-on: windows-latest
-    timeout-minutes: 15
+    
     
     steps:
       - uses: actions/checkout@v4
@@ -20,18 +20,6 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://devsecops.ngrok.app
-        with:
-          args: >
-            -Dsonar.projectKey=youssoufsylla_projetodc2
-            -Dsonar.qualitygate.wait=true
-            -Dsonar.analysis.quick=true
-            -Dsonar.exclusions=**/*.min.*,**/*.bundle.*,node_modules/**,**/dist/**,**/build/**
-            -Dsonar.cpd.exclusions=**/*.min.*,**/*.bundle.*
-            -Dsonar.sourceEncoding=UTF-8
-            -Dsonar.verbose=false
-            -Dsonar.scm.provider=git
-            -Dsonar.scm.revision=${{ github.sha }}
-            -Dsonar.scm.disabled=false
 
       - name: Install and Run OWASP Dependency-Check
         shell: pwsh
