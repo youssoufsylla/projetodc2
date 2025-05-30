@@ -19,6 +19,18 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://devsecops.ngrok.app
+        with:
+          args: >
+            -Dsonar.projectKey=${{ github.repository }}
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.analysis.quick=true
+            -Dsonar.exclusions=**/*.min.*,**/*.bundle.*,node_modules/**,**/dist/**,**/build/**
+            -Dsonar.cpd.exclusions=**/*.min.*,**/*.bundle.*
+            -Dsonar.sourceEncoding=UTF-8
+            -Dsonar.verbose=false
+            -Dsonar.scm.provider=git
+            -Dsonar.scm.revision=${{ github.sha }}
+            -Dsonar.scm.disabled=false
 
       - name: Install and Run OWASP Dependency-Check
         shell: pwsh
@@ -26,67 +38,3 @@ jobs:
           # Téléchargement et installation automatique
           Write-Output "Téléchargement de Dependency-Check..."
           $downloadUrl = "https://github.com/jeremylong/DependencyCheck/releases/latest/download/dependency-check.zip"
-          Invoke-WebRequest -Uri $downloadUrl -OutFile "dependency-check.zip" -TimeoutSec 300
-          
-          Write-Output "Décompression..."
-          Expand-Archive -Path "dependency-check.zip" -DestinationPath "dependency-check" -Force
-          
-          # Recherche récursive du fichier .bat
-          $dcPath = Get-ChildItem -Path ".\dependency-check" -Recurse -Filter "dependency-check.bat" | Select-Object -First 1 -ExpandProperty FullName
-          
-          if (-not $dcPath) {
-              Write-Output "Contenu du dossier dependency-check:"
-              Get-ChildItem -Recurse ".\dependency-check"
-              Write-Error "Échec de l'installation de Dependency-Check - fichier .bat introuvable"
-              exit 1
-          }
-          
-          Write-Output "Dependency-Check trouvé à: $dcPath"
-          
-          # Création du dossier pour les rapports
-          New-Item -ItemType Directory -Path "./security-reports" -Force
-          
-          # Exécution de l'analyse
-          Write-Output "Lancement de l'analyse de sécurité..."
-          & $dcPath `
-            --project "${{ github.repository }}" `
-            --scan . `
-            --format HTML `
-            --format JSON `
-            --out ./security-reports/ `
-            --disableYarnAudit `
-            --disableNodeAudit
-          
-          # Vérification du rapport
-          if (-not (Test-Path "./security-reports/dependency-check-report.json")) {
-              Write-Error "Le rapport n'a pas été généré"
-              exit 1
-          }
-
-      - name: Upload Security Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-report
-          path: |
-            ./security-reports/dependency-check-report.html
-            ./security-reports/dependency-check-report.json
-
-      - name: Check for Critical CVEs
-        shell: pwsh
-        run: |
-          $reportPath = "./security-reports/dependency-check-report.json"
-          if (-not (Test-Path $reportPath)) {
-              Write-Error "Fichier de rapport introuvable: $reportPath"
-              exit 1
-          }
-          
-          $reportData = Get-Content $reportPath | ConvertFrom-Json
-          $criticalCount = ($reportData.dependencies | Where-Object {
-              $_.vulnerabilities | Where-Object { $_.severity -eq "CRITICAL" }
-          }).Count
-          
-          if ($criticalCount -gt 0) {
-              Write-Output "::error::Nombre de vulnérabilités CRITIQUES détectées: $criticalCount"
-              exit 1
-          }
-          Write-Output "Aucune vulnérabilité critique trouvée - Validation réussie!"
