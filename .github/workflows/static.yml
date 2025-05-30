@@ -1,19 +1,20 @@
-name: Build and Security Analysis
+
+name: SonarQube Analysis
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
-  build-and-analyze:
-    name: Build, SonarQube Scan + Security Report
+  build:
+    name: Build and analyze
     runs-on: windows-latest
     
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+          
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v5
         env:
