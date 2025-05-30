@@ -21,7 +21,7 @@ jobs:
           SONAR_HOST_URL: https://devsecops.ngrok.app
         with:
           args: >
-            + -Dsonar.projectKey=youssoufsylla_projetodc2
+            -Dsonar.projectKey=youssoufsylla_projetodc2
             -Dsonar.qualitygate.wait=true
             -Dsonar.analysis.quick=true
             -Dsonar.exclusions=**/*.min.*,**/*.bundle.*,node_modules/**,**/dist/**,**/build/**
