@@ -1,4 +1,3 @@
-
 name: SonarQube Analysis
 
 on:
@@ -26,22 +25,30 @@ jobs:
         run: |
           # Téléchargement et installation automatique
           Write-Output "Téléchargement de Dependency-Check..."
-          $downloadUrl = "https://github.com/jeremylong/DependencyCheck/releases/latest/download/dependency-check-12.1.0-release.zip"
-          Invoke-WebRequest -Uri $downloadUrl -OutFile "dependency-check.zip"
+          $downloadUrl = "https://github.com/jeremylong/DependencyCheck/releases/latest/download/dependency-check.zip"
+          Invoke-WebRequest -Uri $downloadUrl -OutFile "dependency-check.zip" -TimeoutSec 300
           
           Write-Output "Décompression..."
           Expand-Archive -Path "dependency-check.zip" -DestinationPath "dependency-check" -Force
           
-          # Vérification de l'installation
-          if (-not (Test-Path ".\dependency-check\bin\dependency-check.bat")) {
-              Write-Error "Échec de l'installation de Dependency-Check"
+          # Recherche récursive du fichier .bat
+          $dcPath = Get-ChildItem -Path ".\dependency-check" -Recurse -Filter "dependency-check.bat" | Select-Object -First 1 -ExpandProperty FullName
+          
+          if (-not $dcPath) {
+              Write-Output "Contenu du dossier dependency-check:"
               Get-ChildItem -Recurse ".\dependency-check"
+              Write-Error "Échec de l'installation de Dependency-Check - fichier .bat introuvable"
               exit 1
           }
-
+          
+          Write-Output "Dependency-Check trouvé à: $dcPath"
+          
+          # Création du dossier pour les rapports
+          New-Item -ItemType Directory -Path "./security-reports" -Force
+          
           # Exécution de l'analyse
           Write-Output "Lancement de l'analyse de sécurité..."
-          .\dependency-check\bin\dependency-check.bat `
+          & $dcPath `
             --project "${{ github.repository }}" `
             --scan . `
             --format HTML `
@@ -49,7 +56,7 @@ jobs:
             --out ./security-reports/ `
             --disableYarnAudit `
             --disableNodeAudit
-
+          
           # Vérification du rapport
           if (-not (Test-Path "./security-reports/dependency-check-report.json")) {
               Write-Error "Le rapport n'a pas été généré"
@@ -68,9 +75,14 @@ jobs:
         shell: pwsh
         run: |
           $reportPath = "./security-reports/dependency-check-report.json"
+          if (-not (Test-Path $reportPath)) {
+              Write-Error "Fichier de rapport introuvable: $reportPath"
+              exit 1
+          }
+          
           $reportData = Get-Content $reportPath | ConvertFrom-Json
           $criticalCount = ($reportData.dependencies | Where-Object {
-              $_.vulnerabilities.severity -contains "CRITICAL"
+              $_.vulnerabilities | Where-Object { $_.severity -eq "CRITICAL" }
           }).Count
           
           if ($criticalCount -gt 0) {
