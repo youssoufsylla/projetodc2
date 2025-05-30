@@ -27,3 +27,70 @@ jobs:
           # Téléchargement et installation automatique
           Write-Output "Téléchargement de Dependency-Check..."
           $downloadUrl = "https://github.com/jeremylong/DependencyCheck/releases/latest/download/dependency-check.zip"
+          name: SonarQube Analysis
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build and analyze
+    runs-on: windows-latest
+    
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://devsecops.ngrok.app
+
+      - name: Install and Run OWASP Dependency-Check
+        shell: pwsh
+        run: |
+          # Téléchargement et installation automatique
+          Write-Output "Téléchargement de Dependency-Check..."
+          $downloadUrl = "https://github.com/jeremylong/DependencyCheck/releases/latest/download/dependency-check.zip"
+           Write-Output "Décompression..."
+    Expand-Archive -Path "dependency-check.zip" -DestinationPath "dependency-check" -Force
+    
+    # Création du dossier de rapports
+    New-Item -ItemType Directory -Path "./security-reports" -Force
+    
+    # Recherche du binaire
+    $dcPath = Get-ChildItem -Path ".\dependency-check" -Recurse -Filter "dependency-check.bat" | Select-Object -First 1 -ExpandProperty FullName
+    
+    # Exécution avec génération des rapports HTML et CSV uniquement
+    Write-Output "Génération des rapports HTML et CSV..."
+    & $dcPath `
+      --project "${{ github.repository }}" `
+      --scan . `
+      --format HTML `
+      --format CSV `
+      --out ./security-reports/ `
+      --disableYarnAudit `
+      --disableNodeAudit `
+      --prettyPrint
+    
+    # Vérification de la génération des rapports
+    $htmlReport = "./security-reports/dependency-check-report.html"
+    $csvReport = "./security-reports/dependency-check-report.csv"
+    
+    if (-not (Test-Path $htmlReport) {
+        Write-Error "Le rapport HTML n'a pas été généré"
+        exit 1
+    }
+    
+    if (-not (Test-Path $csvReport)) {
+        Write-Error "Le rapport CSV n'a pas été généré"
+        exit 1
+    }
+    
+    Write-Output "Rapports générés avec succès :"
+    Write-Output "- HTML: $htmlReport"
+    Write-Output "- CSV: $csvReport"
